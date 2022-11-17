@@ -1,4 +1,4 @@
-## Heatmap : Behavior x CFOS Density
+## Heatmap : Behavior x CFOS Brain Density
 
 PTSD laboratory study analysis using fake data.
 
