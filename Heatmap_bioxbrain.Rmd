@@ -1,0 +1,92 @@
+---
+title: "Heatmap_bioxbrain"
+author: "EmilyScott"
+date: "2022-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(data.table)
+library("Hmisc")
+
+library(ggplot2)
+library(hrbrthemes)
+library(plotly)
+
+library(ellipse)
+library(RColorBrewer)
+
+library(reshape2)
+```
+
+## R Correlation Heatmap: NB Behavior x CFOS Brain Density 
+
+This is a heatmap containing the correlation between behavioral and brain region cfos data. The goal is to visualize the extent to which behavior and brain region are related.  
+
+Import behavior data and brain cfos density data from the shared drive. 
+
+## Import
+
+```{r}
+behxbrain <- read_csv("behxbrain.csv")
+bb_df <- behxbrain
+```
+
+## Calculate Z Scores
+
+```{r}
+# mean and standard deviation (calculated inside z-score so not really necessary but nice to look at)
+bb_mean <- colMeans(bb_df[sapply(bb_df, is.numeric)], na.rm = TRUE)
+bb_sd <- sapply(bb_df[sapply(bb_df, is.numeric)], sd, na.rm = TRUE)
+
+# z-score     z = (x - mean)/(sd)    (using only bb_df)
+bb_z <- sapply(bb_df, function(bb_df)(bb_df-mean(bb_df, na.rm = T))/sd(bb_df,na.rm = T))
+```
+
+## Conduct Pearson Correlation
+
+```{r}
+#find correlation (r) and p-value
+bb_z_cor <- rcorr(as.matrix(bb_z),  type = "pearson")
+
+############### THIS MAY CHANGE WITH MORE MEASURES/REGIONS #############
+#create table containing only correlations important : behavior vs brain
+bb_z_cor_r <- bb_z_cor$r[1:11,12:15]
+bb_z_cor_P <- bb_z_cor$P[1:11,12:15]
+bb_z_cor_n <- bb_z_cor$n[1:11,12:15]
+
+# other option :  cor(z[,1:11], z[,12:15], use="complete.obs", method="pearson")
+```
+
+## Plot Heatmap
+
+```{r}
+#prep r, p-value, stars for plotting
+bb_melt_r<- melt(bb_z_cor_r)#melt correlation r value data for plotting
+bb_melt_P<- melt(bb_z_cor_P)#melt correlation p value data for plotting
+bb_melt_P$stars <- cut(bb_melt_P$value, breaks=c(-Inf, 0.001, 0.01, 0.05, Inf), label=c("***", "**", "*", "")) #p-value sig stars
+
+bb_melt <- data.frame(BrainRegion = bb_melt_r$Var2, 
+                      BehavioralMeasure = bb_melt_r$Var1,
+                      r = bb_melt_r$value,
+                      P = bb_melt_P$value,
+                      stars = bb_melt_P$stars )
+#save data
+write.csv(bb_melt, "bb_melt.csv")
+
+#plot and save 
+tiff("bb_heatmap.tiff", height = 30, width = 20, units = 'cm', compression = "lzw", res = 300)
+
+ggplot(data = bb_melt, aes(x=BrainRegion, y=BehavioralMeasure, fill=r)) +
+  geom_tile() +
+   geom_text(aes(label=stars), color="black", size=5)+
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation")
+
+dev.off()
+```
